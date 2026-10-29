@@ -9,5 +9,12 @@ Se [RUNBOOK.md](RUNBOOK.md) för spärrar och körordning.
 ## Codex Cloud
 
 Begär den personliga miljövariabeln `EODHD_API_KEY` och ge nätåtkomst endast
-till `eodhd.com` och `api.riksbank.se`. OneDrive uppdateras via den anslutna
-Microsoft SharePoint-anslutningen efter att samtliga spärrar i runbooken passerat.
+till `eodhd.com` och `api.riksbank.se`. Codex Cloud kan göra säkra
+förkontroller, men ska inte skriva arbetsboken: anslutningen ger inte en råfil
+som går att säkerhetskopiera och byte-verifiera.
+
+## Azure för obevakad körning
+
+Azure-varianten finns i `function_app.py` och `src/`. Den använder Microsoft
+Graph med Managed Identity och har en Azure Blob-säkerhetskopia. Läs
+[AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md) innan första körningen.
