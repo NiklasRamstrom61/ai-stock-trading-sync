@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+outputs/
+*.xlsx
+*.xlsm
+__pycache__/
+*.pyc

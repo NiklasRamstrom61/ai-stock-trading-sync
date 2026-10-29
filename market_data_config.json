@@ -1,0 +1,14 @@
+{
+  "provider": "eodhd",
+  "equities": [
+    {"ticker": "INVE.B", "symbol": "INVE-B.ST", "exchange": "ST", "currency": "SEK"},
+    {"ticker": "ATCO.A", "symbol": "ATCO-A.ST", "exchange": "ST", "currency": "SEK"},
+    {"ticker": "SAND", "symbol": "SAND.ST", "exchange": "ST", "currency": "SEK"},
+    {"ticker": "ABB", "symbol": "ABB.ST", "exchange": "ST", "currency": "SEK"},
+    {"ticker": "MSFT", "symbol": "MSFT.US", "exchange": "US", "currency": "USD"},
+    {"ticker": "NVDA", "symbol": "NVDA.US", "exchange": "US", "currency": "USD"}
+  ],
+  "requirements": {
+    "minimum_completed_session_delay_minutes": 30
+  }
+}
