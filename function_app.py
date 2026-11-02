@@ -32,3 +32,20 @@ def manual_preflight(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
         )
     return func.HttpResponse(result, status_code=200, mimetype="text/plain")
+
+
+@app.function_name(name="manual_run_log_test")
+@app.route(route="manual-run-log-test", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+def manual_run_log_test(req: func.HttpRequest) -> func.HttpResponse:
+    """Run exactly one controlled Run_Log write test after validated backup."""
+    safe_env = dict(os.environ)
+    safe_env["RUN_MODE"] = "run_log_test"
+    try:
+        result = execute(safe_env)
+    except Exception:
+        logging.exception("Manual Run_Log test failed")
+        return func.HttpResponse(
+            "ÅTGÄRD KRÄVS — controlled Run_Log test failed. Inspect Azure logs for details.",
+            status_code=500,
+        )
+    return func.HttpResponse(result, status_code=200, mimetype="text/plain")
