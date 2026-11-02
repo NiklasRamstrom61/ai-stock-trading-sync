@@ -19,7 +19,7 @@ def market_data_sync(timer: func.TimerRequest) -> None:
 
 @app.function_name(name="manual_preflight")
 @app.route(route="manual-preflight", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
-def manual_preflight(_: func.HttpRequest) -> func.HttpResponse:
+def manual_preflight(req: func.HttpRequest) -> func.HttpResponse:
     """Run a write-blocked check on demand; this endpoint always forces preflight."""
     safe_env = dict(os.environ)
     safe_env["RUN_MODE"] = "preflight"
