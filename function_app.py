@@ -4,7 +4,7 @@ import os
 
 import azure.functions as func
 
-from src.runner import execute
+from src.runner import ControlledTestError, execute
 
 app = func.FunctionApp()
 
@@ -42,6 +42,12 @@ def manual_run_log_test(req: func.HttpRequest) -> func.HttpResponse:
     safe_env["RUN_MODE"] = "run_log_test"
     try:
         result = execute(safe_env)
+    except ControlledTestError as error:
+        logging.exception("Manual Run_Log test failed at a controlled stage")
+        return func.HttpResponse(
+            f"ÅTGÄRD KRÄVS — {error}. Excel and OneDrive were not updated.",
+            status_code=500,
+        )
     except Exception:
         logging.exception("Manual Run_Log test failed")
         return func.HttpResponse(
