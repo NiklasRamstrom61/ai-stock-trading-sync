@@ -14,6 +14,13 @@ class GraphError(RuntimeError):
     pass
 
 
+class BackupFailure(RuntimeError):
+    """A stage-only Blob backup error with no credentials or request details."""
+
+    def __init__(self, stage: str, error: Exception):
+        super().__init__(f"Azure backup {stage} failed ({type(error).__name__})")
+
+
 class GraphWorkbook:
     def __init__(self, drive_id: str, item_id: str):
         self.drive_id, self.item_id = drive_id, item_id
@@ -49,13 +56,21 @@ class GraphWorkbook:
 
 
 def durable_backup(content: bytes, connection: str, container: str, source_etag: str) -> str:
-    service = BlobServiceClient.from_connection_string(connection)
-    client = service.get_container_client(container)
+    try:
+        service = BlobServiceClient.from_connection_string(connection)
+        client = service.get_container_client(container)
+    except Exception as error:
+        raise BackupFailure("initialization", error) from error
     try:
         client.create_container()
     except ResourceExistsError:
         pass
+    except Exception as error:
+        raise BackupFailure("container creation", error) from error
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     name = f"AI_Stock_Trading_Simulator_v1/{stamp}_{sha256(content).hexdigest()[:12]}.xlsx"
-    client.upload_blob(name, content, overwrite=False, metadata={"source_etag": source_etag})
+    try:
+        client.upload_blob(name, content, overwrite=False, metadata={"source_etag": source_etag})
+    except Exception as error:
+        raise BackupFailure("upload", error) from error
     return name
