@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 
-from .graph import GraphWorkbook, durable_backup
+from .graph import BackupFailure, GraphWorkbook, durable_backup
 from .safe_xlsx import WorkbookSafetyError, append_run_log_only
 
 
@@ -20,6 +20,8 @@ def required(env: dict, name: str) -> str:
 
 def safe_storage_failure(error: Exception) -> str:
     """Report only a normalized storage failure class, never connection details."""
+    if isinstance(error, BackupFailure):
+        return str(error)
     kind = type(error).__name__
     status = getattr(error, "status_code", None)
     suffix = f", HTTP {status}" if isinstance(status, int) else ""
