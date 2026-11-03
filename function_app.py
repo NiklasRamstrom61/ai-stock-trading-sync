@@ -4,6 +4,7 @@ import os
 
 import azure.functions as func
 
+from src.market_data import MarketDataPreflightError, read_only_data_preflight
 from src.runner import ControlledTestError, execute
 
 app = func.FunctionApp()
@@ -29,6 +30,29 @@ def manual_preflight(req: func.HttpRequest) -> func.HttpResponse:
         logging.exception("Manual preflight failed")
         return func.HttpResponse(
             "ÅTGÄRD KRÄVS — preflight failed. Inspect Azure logs for details.",
+            status_code=500,
+        )
+    return func.HttpResponse(result, status_code=200, mimetype="text/plain")
+
+
+
+
+@app.function_name(name="manual_data_preflight")
+@app.route(route="manual-data-preflight", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+def manual_data_preflight(req: func.HttpRequest) -> func.HttpResponse:
+    """Fetch and validate market data without reading or writing the workbook."""
+    try:
+        result = read_only_data_preflight(dict(os.environ))
+    except MarketDataPreflightError as error:
+        logging.info("Read-only market-data preflight stopped: %s", error)
+        return func.HttpResponse(
+            f"ÅTGÄRD KRÄVS — {error}. Excel and OneDrive were not changed.",
+            status_code=400,
+        )
+    except Exception:
+        logging.exception("Read-only market-data preflight failed")
+        return func.HttpResponse(
+            "ÅTGÄRD KRÄVS — read-only market-data preflight failed. Excel and OneDrive were not changed.",
             status_code=500,
         )
     return func.HttpResponse(result, status_code=200, mimetype="text/plain")
