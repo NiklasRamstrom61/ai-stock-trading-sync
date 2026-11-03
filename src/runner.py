@@ -7,6 +7,10 @@ from .graph import GraphWorkbook, durable_backup
 from .safe_xlsx import WorkbookSafetyError, append_run_log_only
 
 
+class ControlledTestError(RuntimeError):
+    """A safe, user-visible diagnostic stage for the controlled write test."""
+
+
 def required(env: dict, name: str) -> str:
     value = env.get(name)
     if not value:
@@ -16,23 +20,52 @@ def required(env: dict, name: str) -> str:
 
 def execute(env: dict) -> str:
     mode = env.get("RUN_MODE", "preflight")
-    graph = GraphWorkbook(required(env, "GRAPH_DRIVE_ID"), required(env, "GRAPH_ITEM_ID"))
-    metadata = graph.metadata()
+    try:
+        graph = GraphWorkbook(required(env, "GRAPH_DRIVE_ID"), required(env, "GRAPH_ITEM_ID"))
+        metadata = graph.metadata()
+    except Exception as error:
+        if mode == "run_log_test":
+            raise ControlledTestError("Target workbook verification failed") from error
+        raise
     if metadata.get("name") != "AI_Stock_Trading_Simulator_v1.xlsx" or not metadata.get("eTag"):
         raise RuntimeError("Exact target workbook/version could not be verified")
     if mode == "preflight":
         return f"DATA REDO — verified {metadata['name']} version {metadata['eTag']}; no write requested"
     if mode != "run_log_test":
         raise RuntimeError("RUN_MODE must be preflight or run_log_test")
-    original = graph.download()
-    if len(original) != metadata.get("size"):
-        raise RuntimeError("Downloaded file size differs from verified metadata")
-    backup = durable_backup(original, required(env, "AzureWebJobsStorage"), env.get("BACKUP_CONTAINER", "workbook-backups"), metadata["eTag"])
     try:
-        changed = append_run_log_only(original, "RUN-AZURE-CONTROLLED-LOG-TEST", metadata["eTag"])
+        original = graph.download()
+    except Exception as error:
+        raise ControlledTestError("Workbook download failed") from error
+    if len(original) != metadata.get("size"):
+        raise ControlledTestError("Downloaded file size differs from verified metadata")
+    try:
+        backup = durable_backup(
+            original,
+            required(env, "AzureWebJobsStorage"),
+            env.get("BACKUP_CONTAINER", "workbook-backups"),
+            metadata["eTag"],
+        )
+    except Exception as error:
+        raise ControlledTestError("Azure backup failed") from error
+    try:
+        changed = append_run_log_only(
+            original,
+            "RUN-AZURE-CONTROLLED-LOG-TEST",
+            metadata["eTag"],
+        )
     except WorkbookSafetyError as error:
-        raise RuntimeError(f"Workbook safety check failed: {error}") from error
-    uploaded = graph.replace(changed, metadata["eTag"])
-    if sha256(graph.download()).digest() != sha256(changed).digest():
-        raise RuntimeError("Post-upload byte verification failed")
+        raise ControlledTestError("Run_Log safety validation failed") from error
+    except Exception as error:
+        raise ControlledTestError("Run_Log preparation failed") from error
+    try:
+        uploaded = graph.replace(changed, metadata["eTag"])
+    except Exception as error:
+        raise ControlledTestError("OneDrive upload failed") from error
+    try:
+        verified = graph.download()
+    except Exception as error:
+        raise ControlledTestError("Post-upload verification download failed") from error
+    if sha256(verified).digest() != sha256(changed).digest():
+        raise ControlledTestError("Post-upload byte verification failed")
     return f"DATA UPPDATERAD — controlled Run_Log test verified; backup {backup}; version {uploaded.get('eTag', 'unknown')}"
