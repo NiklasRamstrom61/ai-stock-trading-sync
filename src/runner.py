@@ -18,6 +18,25 @@ def required(env: dict, name: str) -> str:
     return value
 
 
+def safe_storage_failure(error: Exception) -> str:
+    """Report only a normalized storage failure class, never connection details."""
+    allowed = {
+        "ClientAuthenticationError",
+        "HttpResponseError",
+        "ResourceExistsError",
+        "ResourceNotFoundError",
+        "ServiceRequestError",
+        "ServiceResponseError",
+        "ValueError",
+    }
+    kind = type(error).__name__
+    if kind not in allowed:
+        return "Azure backup failed (unexpected storage error)"
+    status = getattr(error, "status_code", None)
+    suffix = f", HTTP {status}" if isinstance(status, int) else ""
+    return f"Azure backup failed ({kind}{suffix})"
+
+
 def execute(env: dict) -> str:
     mode = env.get("RUN_MODE", "preflight")
     try:
@@ -47,7 +66,7 @@ def execute(env: dict) -> str:
             metadata["eTag"],
         )
     except Exception as error:
-        raise ControlledTestError("Azure backup failed") from error
+        raise ControlledTestError(safe_storage_failure(error)) from error
     try:
         changed = append_run_log_only(
             original,
