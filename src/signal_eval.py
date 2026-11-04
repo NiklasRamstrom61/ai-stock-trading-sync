@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 
 from .market_data import INSTRUMENTS, MarketDataPreflightError
+
+_NEW_YORK = ZoneInfo("America/New_York")
+_EOD_READY_TIME = time(16, 30)
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,22 @@ def _complete_rows(payload: object, ticker: str) -> list[dict]:
     if len(rows) < 21:
         raise MarketDataPreflightError(f"{ticker}: fewer than 21 complete daily sessions")
     return sorted(rows, key=lambda row: str(row["date"]))
+
+
+def _validate_completed_session(session_date: str) -> None:
+    """Accept today's data only after a conservative New York EOD grace period."""
+    try:
+        observed = date.fromisoformat(session_date)
+    except ValueError as error:
+        raise MarketDataPreflightError("invalid latest session date") from error
+
+    now_ny = datetime.now(_NEW_YORK)
+    if observed > now_ny.date():
+        raise MarketDataPreflightError("latest market session is dated in the future")
+    if observed == now_ny.date() and now_ny.time() < _EOD_READY_TIME:
+        raise MarketDataPreflightError(
+            "USA session is not yet eligible as completed daily data; retry after 16:30 New York time"
+        )
 
 
 def evaluate_signals_read_only(env: dict[str, str]) -> str:
@@ -81,8 +101,7 @@ def evaluate_signals_read_only(env: dict[str, str]) -> str:
         detail = ", ".join(sorted(session_dates))
         raise MarketDataPreflightError(f"mixed latest session dates: {detail}")
     session_date = session_dates.pop()
-    if session_date >= date.today().isoformat():
-        raise MarketDataPreflightError("USA session is not yet eligible as completed daily data")
+    _validate_completed_session(session_date)
 
     report = "; ".join(
         f"{candidate.ticker}: {candidate.decision}, close {candidate.close:g}, "
