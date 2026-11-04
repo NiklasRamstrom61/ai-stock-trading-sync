@@ -5,7 +5,7 @@ import os
 import azure.functions as func
 
 from src.market_data import MarketDataPreflightError, read_only_data_preflight
-from src.runner import ControlledTestError, execute
+from src.runner import ControlledTestError, DataSyncError, execute
 
 app = func.FunctionApp()
 
@@ -35,8 +35,6 @@ def manual_preflight(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(result, status_code=200, mimetype="text/plain")
 
 
-
-
 @app.function_name(name="manual_data_preflight")
 @app.route(route="manual-data-preflight", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
 def manual_data_preflight(req: func.HttpRequest) -> func.HttpResponse:
@@ -53,6 +51,29 @@ def manual_data_preflight(req: func.HttpRequest) -> func.HttpResponse:
         logging.exception("Read-only market-data preflight failed")
         return func.HttpResponse(
             "ÅTGÄRD KRÄVS — read-only market-data preflight failed. Excel and OneDrive were not changed.",
+            status_code=500,
+        )
+    return func.HttpResponse(result, status_code=200, mimetype="text/plain")
+
+
+@app.function_name(name="manual_data_sync")
+@app.route(route="manual-data-sync", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+def manual_data_sync(req: func.HttpRequest) -> func.HttpResponse:
+    """Perform one guarded Market_Data plus Run_Log update after preconditions pass."""
+    safe_env = dict(os.environ)
+    safe_env["RUN_MODE"] = "data_sync"
+    try:
+        result = execute(safe_env)
+    except DataSyncError as error:
+        logging.info("Manual data sync stopped: %s", error)
+        return func.HttpResponse(
+            f"ÅTGÄRD KRÄVS — {error}. Excel and OneDrive were not updated.",
+            status_code=400,
+        )
+    except Exception:
+        logging.exception("Manual data sync failed")
+        return func.HttpResponse(
+            "ÅTGÄRD KRÄVS — guarded data sync failed. Excel and OneDrive were not updated.",
             status_code=500,
         )
     return func.HttpResponse(result, status_code=200, mimetype="text/plain")
