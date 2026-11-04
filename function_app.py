@@ -6,6 +6,7 @@ import azure.functions as func
 
 from src.market_data import MarketDataPreflightError, read_only_data_preflight
 from src.runner import ControlledTestError, DataSyncError, execute
+from src.signal_eval import evaluate_signals_read_only
 
 app = func.FunctionApp()
 
@@ -51,6 +52,27 @@ def manual_data_preflight(req: func.HttpRequest) -> func.HttpResponse:
         logging.exception("Read-only market-data preflight failed")
         return func.HttpResponse(
             "ÅTGÄRD KRÄVS — read-only market-data preflight failed. Excel and OneDrive were not changed.",
+            status_code=500,
+        )
+    return func.HttpResponse(result, status_code=200, mimetype="text/plain")
+
+
+@app.function_name(name="manual_signal_preflight")
+@app.route(route="manual-signal-preflight", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+def manual_signal_preflight(req: func.HttpRequest) -> func.HttpResponse:
+    """Return deterministic signal candidates without mutating any file."""
+    try:
+        result = evaluate_signals_read_only(dict(os.environ))
+    except MarketDataPreflightError as error:
+        logging.info("Read-only signal evaluation stopped: %s", error)
+        return func.HttpResponse(
+            f"ÅTGÄRD KRÄVS — {error}. Excel and OneDrive were not changed.",
+            status_code=400,
+        )
+    except Exception:
+        logging.exception("Read-only signal evaluation failed")
+        return func.HttpResponse(
+            "ÅTGÄRD KRÄVS — read-only signal evaluation failed. Excel and OneDrive were not changed.",
             status_code=500,
         )
     return func.HttpResponse(result, status_code=200, mimetype="text/plain")
