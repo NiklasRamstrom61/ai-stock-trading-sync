@@ -75,8 +75,7 @@ def read_only_data_preflight(env: dict[str, str]) -> str:
     session_date = session_dates.pop()
 
     fx_response = requests.get(
-        "https://api.riksbank.se/swea/v1/Observations/EXR/SEK/USD",
-        params={"from": session_date, "to": session_date},
+        f"https://api.riksbank.se/swea/v1/Observations/SEKUSDPMI/{session_date}/{session_date}",
         timeout=45,
     )
     if not fx_response.ok:
