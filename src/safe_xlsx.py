@@ -1,7 +1,7 @@
 """Minimal XLSX editor with a fail-closed Market_Data and Run_Log sync path."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -101,9 +101,7 @@ def _iso_date(value: str) -> str:
     try:
         converted = datetime(1899, 12, 30, tzinfo=timezone.utc)
         return (converted + timedelta(days=float(value))).date().isoformat()
-    except ValueError:
-        return value
-    except OverflowError:
+    except (ValueError, OverflowError):
         return value
 
 
